@@ -4,9 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Attendance Report | QLLC</title>
+    <meta name="description" content="Attendance Report Generator For QLLC">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Quraner Alo Foundation">
+    <meta name="keywords" content="QLLC, Attendance Report Generator, Quraner Alo Foundation">
+    <meta name="developer" content="DecodeMH">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
@@ -84,43 +90,50 @@
     </style>
 </head>
 
-<body>
+<body class="relative">
+    <main class="w-full h-[90vh]">
+        <div class="card">
+            <h2 class="text-center font-bold text-2xl p-4 mb-5">Attendance Report Generator For QLLC</h2>
 
-    <div class="card">
-        <h2 style="text-align:center">Attendance Report Generator For QLLC</h2>
-
-        <div class="upload-section">
-            <div class="file-box">
-                <label><b>1. Total Members CSV</b></label>
-                <input type="file" id="totalMembersFile" accept=".csv">
+            <div class="upload-section">
+                <div class="file-box">
+                    <label><b>1. Total Members CSV</b></label>
+                    <input type="file" id="totalMembersFile" accept=".csv">
+                </div>
+                <div class="file-box">
+                    <label><b>2. Attendance CSV</b></label>
+                    <input type="file" id="attendanceFile" accept=".csv">
+                </div>
             </div>
-            <div class="file-box">
-                <label><b>2. Attendance CSV</b></label>
-                <input type="file" id="attendanceFile" accept=".csv">
+
+            <div id="previewArea" class="preview-container">
+                <div id="summaryText" style="margin-bottom: 10px; font-weight: bold;"></div>
+                <div class="table-wrapper">
+                    <table id="previewTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Mobile</th>
+                                <th>Roll</th>
+                                <th>Country</th>
+                                <th>Email</th>
+                                <th>Moderator</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <button id="downloadBtn">Download Excel with Summary Sheet</button>
             </div>
         </div>
+    </main>
 
-        <div id="previewArea" class="preview-container">
-            <div id="summaryText" style="margin-bottom: 10px; font-weight: bold;"></div>
-            <div class="table-wrapper">
-                <table id="previewTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Mobile</th>
-                            <th>Roll</th>
-                            <th>Country</th>
-                            <th>Email</th>
-                            <th>Moderator</th>
-                            <th>Duration</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-            <button id="downloadBtn">Download Excel with Summary Sheet</button>
-        </div>
-    </div>
+    <footer class="absolute bottom-0 w-full bg-gray-100 p-4">
+        <p style="text-align:center; margin-top: 20px;">
+            &copy; <span id="currentYear"></span> Quraner Alo Foundation. All rights reserved.
+        </p>
+    </footer>
 
     <script>
         $(document).ready(function () {
@@ -285,6 +298,9 @@
 
                 XLSX.writeFile(wb, "Final_Attendance_Report.xlsx");
             });
+           
+            // Set current year in footer
+            $('#currentYear').text(new Date().getFullYear());
         });
     </script>
 
