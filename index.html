@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Attendance Report | QLLC</title>
+    <meta name="description" content="Attendance Report Generator For QLLC">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Quraner Alo Foundation">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; }
+        /* Table Scrollbar Styling */
+        .table-wrapper::-webkit-scrollbar { height: 6px; width: 6px; }
+        .table-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* Ensure table cells don't wrap too much on mobile */
+        td, th { white-space: nowrap; }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+    <main class="flex-grow p-4 md:p-8">
+        <div class="max-w-6xl mx-auto bg-white p-4 md:p-8 rounded-xl shadow-lg border border-gray-200">
+            
+            <h2 class="text-center font-bold text-xl md:text-2xl text-gray-800 mb-6 uppercase tracking-wide">
+                Attendance Report Generator For QLLC
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div class="border-2 border-dashed border-gray-300 p-6 rounded-lg text-center bg-gray-50 hover:border-blue-400 transition-colors">
+                    <label class="block font-bold mb-2 text-gray-700">1. Total Members CSV</label>
+                    <input type="file" id="totalMembersFile" accept=".csv" class="text-sm w-full">
+                </div>
+                <div class="border-2 border-dashed border-gray-300 p-6 rounded-lg text-center bg-gray-50 hover:border-blue-400 transition-colors">
+                    <label class="block font-bold mb-2 text-gray-700">2. Attendance CSV</label>
+                    <input type="file" id="attendanceFile" accept=".csv" class="text-sm w-full">
+                </div>
+            </div>
+
+            <div id="sampleArea" class="space-y-6">
+                <h2 class="text-center text-blue-600 font-bold text-lg">Format your CSV files as shown below:</h2>
+                
+                <div class="space-y-4">
+                    <div class="overflow-hidden">
+                        <h3 class="py-2 text-sm font-semibold text-gray-600">* Total Members Column Headings</h3>
+                        <div class="table-wrapper overflow-x-auto border rounded-lg">
+                            <table class="w-full text-left text-sm">
+                                <thead>
+                                    <tr class="bg-gray-500 text-white">
+                                        <th class="p-3 border text-center">Name</th><th class="p-3 border text-center">Mobile</th><th class="p-3 border text-center">Roll</th><th class="p-3 border text-center">Country</th><th class="p-3 border text-center">Email</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="overflow-hidden">
+                        <h3 class="py-2 text-sm font-semibold text-gray-600">* Attendance Column Headings</h3>
+                        <div class="table-wrapper overflow-x-auto border rounded-lg">
+                            <table class="w-full text-left text-sm">
+                                <thead>
+                                    <tr class="bg-gray-500 text-white">
+                                        <th class="p-3 border text-center">Name</th><th class="p-3 border text-center">Email</th><th class="p-3 border text-center">Duration</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="previewArea" class="hidden mt-8">
+                <div id="summaryText" class="mb-4 text-center text-green-600 font-bold"></div>
+                <div class="table-wrapper overflow-x-auto border border-gray-200 rounded-lg max-h-[400px]">
+                    <table id="previewTable" class="w-full text-sm max-h-[400px]">
+                        <thead class="sticky top-0 bg-blue-500 text-white z-10">
+                            <tr>
+                                <th class="p-3 border">Name</th>
+                                <th class="p-3 border text-center">Mobile</th>
+                                <th class="p-3 border text-center">Roll</th>
+                                <th class="p-3 border text-center">Country</th>
+                                <th class="p-3 border">Email</th>
+                                <th class="p-3 border text-center">Moderator</th>
+                                <th class="p-3 border text-right">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+                <button id="downloadBtn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition shadow-md flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Download Excel with Summary Sheet
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 p-6 text-center text-gray-500 text-sm">
+        &copy; <span id="currentYear"></span> Quraner Alo Foundation. All rights reserved.
+    </footer>
+
+    <script>
+        $(document).ready(function () {
+            let globalFinalData = [];
+
+            $('#totalMembersFile, #attendanceFile').on('change', function () {
+                const file1 = $('#totalMembersFile')[0].files[0];
+                const file2 = $('#attendanceFile')[0].files[0];
+                if (file1 && file2) processData(file1, file2);
+            });
+
+            function getVal(row, possibleNames) {
+                const keys = Object.keys(row);
+                for (let name of possibleNames) {
+                    let foundKey = keys.find(k => k.trim().toLowerCase() === name.toLowerCase());
+                    if (foundKey) return row[foundKey] ? row[foundKey].toString().trim() : "";
+                }
+                return "";
+            }
+
+            function formatRoll(val) {
+                if (!val) return "";
+                return val.replace(/\s*-\s*/, " - ");
+            }
+
+            function processData(f1, f2) {
+                Papa.parse(f1, {
+                    header: true, skipEmptyLines: 'greedy', encoding: "UTF-8",
+                    complete: function (mRes) {
+                        Papa.parse(f2, {
+                            header: true, skipEmptyLines: 'greedy', encoding: "UTF-8",
+                            complete: function (aRes) {
+                                const attendanceMap = {};
+                                aRes.data.forEach(row => {
+                                    let email = getVal(row, ['email', 'e-mail']);
+                                    if (email) attendanceMap[email.toLowerCase()] = getVal(row, ['duration', 'time']);
+                                });
+
+                                globalFinalData = mRes.data
+                                    .filter(m => getVal(m, ['name']) || getVal(m, ['email']))
+                                    .map(m => {
+                                        let mEmail = getVal(m, ['email', 'e-mail']);
+                                        let mMobile = getVal(m, ['mobile', 'phone']);
+                                        
+                                        // Fix: Leading Zero if starts with 1
+                                        if (mMobile && mMobile.startsWith('1')) mMobile = "0" + mMobile;
+                                        if (mMobile && mMobile.length === 10 && !mMobile.startsWith('0')) mMobile = "0" + mMobile;
+
+                                        return {
+                                            "Name": getVal(m, ['name', 'full name']),
+                                            "Mobile": mMobile,
+                                            "Roll": formatRoll(getVal(m, ['roll', 'id'])),
+                                            "Country": getVal(m, ['country']),
+                                            "Email": mEmail,
+                                            "Moderator": getVal(m, ['moderator', 'moderato']) || "Unassigned",
+                                            "Duration": attendanceMap[mEmail.toLowerCase()] || "Not Attended"
+                                        };
+                                    });
+
+                                globalFinalData.sort((a, b) => {
+                                    if (a.Duration === "Not Attended") return 1;
+                                    if (b.Duration === "Not Attended") return -1;
+                                    return parseFloat(b.Duration) - parseFloat(a.Duration);
+                                });
+
+                                renderPreview();
+                            }
+                        });
+                    }
+                });
+            }
+
+            function renderPreview() {
+                const $tbody = $('#previewTable tbody').empty();
+                globalFinalData.forEach(row => {
+                    $tbody.append(`<tr>
+                        <td class="p-3 border">${row.Name}</td>
+                        <td class="p-3 border text-center font-mono">${row.Mobile}</td>
+                        <td class="p-3 border text-center">${row.Roll}</td>
+                        <td class="p-3 border text-center">${row.Country}</td>
+                        <td class="p-3 border text-blue-600">${row.Email}</td>
+                        <td class="p-3 border text-center uppercase text-xs font-bold text-gray-500">${row.Moderator}</td>
+                        <td class="p-3 border text-right font-bold">${row.Duration}</td>
+                    </tr>`);
+                });
+                $('#sampleArea').fadeOut(200, function() {
+                    $('#previewArea').removeClass('hidden').fadeIn(500);
+                    $('#summaryText').text(`Total Members Processed: ${globalFinalData.length}`);
+                });
+            }
+
+            $('#downloadBtn').on('click', function () {
+                const wb = XLSX.utils.book_new();
+                const grouped = globalFinalData.reduce((acc, curr) => {
+                    if (!acc[curr.Moderator]) acc[curr.Moderator] = [];
+                    acc[curr.Moderator].push(curr);
+                    return acc;
+                }, {});
+
+                // 1. Summary Sheet
+                const summaryData = Object.keys(grouped).map(mod => {
+                    const list = grouped[mod];
+                    return {
+                        "Moderator Name": mod,
+                        "Green (>=1hr)": list.filter(d => parseFloat(d.Duration) >= 60).length,
+                        "Yellow (30-59m)": list.filter(d => parseFloat(d.Duration) >= 30 && parseFloat(d.Duration) < 60).length,
+                        "Red (<30m / Absent)": list.filter(d => d.Duration === "Not Attended" || parseFloat(d.Duration) < 30).length,
+                        "Total Members": list.length
+                    };
+                });
+                const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+                wsSummary['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 15 }];
+                XLSX.utils.book_append_sheet(wb, wsSummary, "OVERALL SUMMARY");
+
+                // 2. Moderator Sheets
+                Object.keys(grouped).forEach(modName => {
+                    const ws = XLSX.utils.json_to_sheet(grouped[modName]);
+                    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 15 }];
+                    const range = XLSX.utils.decode_range(ws['!ref']);
+                    for (let R = range.s.r; R <= range.e.r; ++R) {
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+                            if (!ws[cellRef]) continue;
+                            ws[cellRef].s = {
+                                border: {
+                                    top: { style: "thin", color: { rgb: "000000" } },
+                                    bottom: { style: "thin", color: { rgb: "000000" } },
+                                    left: { style: "thin", color: { rgb: "000000" } },
+                                    right: { style: "thin", color: { rgb: "000000" } }
+                                }
+                            };
+                            if (R === 0) {
+                                ws[cellRef].s.font = { bold: true, color: { rgb: "FFFFFF" } };
+                                ws[cellRef].s.fill = { fgColor: { rgb: "4472C4" } };
+                                ws[cellRef].s.alignment = { horizontal: "center" };
+                            } else {
+                                const row = grouped[modName][R - 1];
+                                const dur = parseFloat(row.Duration);
+                                let bgColor = "FFFFFF";
+                                if (row.Duration === "Not Attended" || dur < 30) bgColor = "F8D7DA";
+                                else if (dur < 60) bgColor = "FFF3CD";
+                                else bgColor = "D4EDDA";
+                                ws[cellRef].s.fill = { fgColor: { rgb: bgColor } };
+                            }
+                            if (C === 1 || C === 2) { ws[cellRef].t = 's'; ws[cellRef].z = '@'; }
+                        }
+                    }
+                    XLSX.utils.book_append_sheet(wb, ws, modName.substring(0, 31).replace(/[\\?*\/\[\]]/g, ''));
+                });
+                XLSX.writeFile(wb, "Final_Attendance_Report.xlsx");
+            });
+
+            $('#currentYear').text(new Date().getFullYear());
+        });
+    </script>
+</body>
+</html>
