@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLLC Monthly Reports</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="./assets/css/app.css" />
+</head>
+
+<body>
+    <!-- <header>
+        <nav>
+            <ul>
+                <li><a href="#">Monthly Reports</a></li>
+                <li><a href="#">Class Reports</a></li>
+                <li><a href="#">Result</a></li>
+            </ul>
+        </nav>
+    </header> -->
+    <main class="app-shell">
+        <section class="topbar">
+            <div>
+                <p class="eyebrow">QLLC Homework Reports</p>
+                <h1>Monthly report generator</h1>
+                <p id="reportRange" class="muted">Loading report data...</p>
+            </div>
+            <div class="actions">
+                <button id="processBtn" class="btn btn-secondary" type="button">Process Files</button>
+                <button id="excelBtn" class="btn btn-primary" type="button">Export Excel</button>
+                <button id="zipBtn" class="btn btn-primary" type="button">Export PDF ZIP</button>
+            </div>
+        </section>
+
+        <section class="upload-grid" aria-label="Required report files">
+            <label class="upload-card">
+                <span>Participants list</span>
+                <small>CSV with Name, Mobile, Roll, Moderator</small>
+                <input id="participantsFile" type="file" accept=".csv,text/csv" />
+            </label>
+            <label class="upload-card">
+                <span>Homework list</span>
+                <small>CSV with dates, homework, submit period</small>
+                <input id="homeworkFile" type="file" accept=".csv,text/csv" />
+            </label>
+            <label class="upload-card">
+                <span>WhatsApp chat</span>
+                <small>TXT export from the homework group</small>
+                <input id="chatFile" type="file" accept=".txt,text/plain" />
+            </label>
+        </section>
+
+        <section class="stats-grid" id="statsGrid"></section>
+
+        <section class="workspace">
+            <section class="panel participant-panel">
+                <div class="panel-head">
+                    <div>
+                        <h2>Participants</h2>
+                        <p class="muted">Ranked by highest number of submitted homework</p>
+                    </div>
+                    <input id="searchInput" type="search" placeholder="Search name, roll, mobile" />
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th class="rth">Roll</th>
+                                <th class="rth">Moderator</th>
+                                <th class="rth">%</th>
+                                <th class="rth">Mark</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="participantRows"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <div id="previewModal" class="modal" hidden>
+            <div class="modal-backdrop" data-close-modal></div>
+            <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="selectedName">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="selectedName">Report preview</h2>
+                        <p id="selectedMeta" class="muted">Use a row Preview button to show the homework table.</p>
+                    </div>
+                    <div class="actions">
+                        <button id="pdfBtn" class="btn btn-primary" type="button" disabled>Download PDF</button>
+                        <button id="closeModalBtn" class="btn btn-secondary" type="button">Close</button>
+                    </div>
+                </div>
+                <div id="preview" class="preview-empty">Report preview will appear here.</div>
+            </section>
+        </div>
+        
+    </main>
+    
+    <section class="footer">
+        <footer>
+            <p>QLLC Homework Reports</p>
+        </footer>
+    </section>
+
+</body>
+
+<script src="./assets/js/font.js"></script>
+<script src="./assets/js/script.js"></script>
+</html>

@@ -1,4 +1,7 @@
 node_modules
-*
 !index.html
 !.gitignore
+bin
+data
+features.txt
+submission format.txt
