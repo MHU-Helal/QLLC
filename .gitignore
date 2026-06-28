@@ -1,8 +1,5 @@
-node_modules
-*
-!index.html
-!.gitignore
-!css/
-!css/**
-!js/
-!js/**
+data
+bin
+features.txt
+submission format.txt
+

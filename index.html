@@ -1,333 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Homework Report Generator</title>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <title>QLLC Monthly Reports</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
-    <link rel="stylesheet" href="css/app.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="./assets/css/app.css" />
 </head>
 
-<body class="bg-slate-100 min-h-screen">
-
-<div class="container mx-auto p-4 lg:p-8">
-
-    <!-- HEADER -->
-
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-slate-800">
-            Homework Report Generator
-        </h1>
-
-        <p class="text-slate-500 mt-2">
-            WhatsApp Homework Tracking & Reporting System
-        </p>
-    </div>
-
-    <!-- UPLOAD PANEL -->
-
-    <div class="card mb-6">
-
-        <div class="grid md:grid-cols-3 gap-4">
-
+<body>
+    <!-- <header>
+        <nav>
+            <ul>
+                <li><a href="#">Monthly Reports</a></li>
+                <li><a href="#">Class Reports</a></li>
+                <li><a href="#">Result</a></li>
+            </ul>
+        </nav>
+    </header> -->
+    <main class="app-shell">
+        <section class="topbar">
             <div>
-                <label class="block font-medium mb-2">
-                    Master List CSV
-                </label>
-
-                <input
-                    id="masterCsv"
-                    type="file"
-                    accept=".csv"
-                    class="input-file"
-                >
+                <p class="eyebrow">QLLC Homework Reports</p>
+                <h1>Monthly report generator</h1>
+                <p id="reportRange" class="muted">Loading report data...</p>
             </div>
-
-            <div>
-                <label class="block font-medium mb-2">
-                    Homework Schedule CSV
-                </label>
-
-                <input
-                    id="scheduleCsv"
-                    type="file"
-                    accept=".csv"
-                    class="input-file"
-                >
+            <div class="actions">
+                <button id="processBtn" class="btn btn-secondary" type="button">Process Files</button>
+                <button id="excelBtn" class="btn btn-primary" type="button">Export Excel</button>
+                <button id="zipBtn" class="btn btn-primary" type="button">Export PDF ZIP</button>
             </div>
+        </section>
 
-            <div>
-                <label class="block font-medium mb-2">
-                    WhatsApp Chat TXT
-                </label>
+        <section class="upload-grid" aria-label="Required report files">
+            <label class="upload-card">
+                <span>Participants list</span>
+                <small>CSV with Name, Mobile, Roll, Moderator</small>
+                <input id="participantsFile" type="file" accept=".csv,text/csv" />
+            </label>
+            <label class="upload-card">
+                <span>Homework list</span>
+                <small>CSV with dates, homework, submit period</small>
+                <input id="homeworkFile" type="file" accept=".csv,text/csv" />
+            </label>
+            <label class="upload-card">
+                <span>WhatsApp chat</span>
+                <small>TXT export from the homework group</small>
+                <input id="chatFile" type="file" accept=".txt,text/plain" />
+            </label>
+        </section>
 
-                <input
-                    id="chatTxt"
-                    type="file"
-                    accept=".txt"
-                    class="input-file"
-                >
-            </div>
+        <section class="stats-grid" id="statsGrid"></section>
 
+        <section class="workspace">
+            <section class="panel participant-panel">
+                <div class="panel-head">
+                    <div>
+                        <h2>Participants</h2>
+                        <p class="muted">Ranked by highest number of submitted homework</p>
+                    </div>
+                    <input id="searchInput" type="search" placeholder="Search name, roll, mobile" />
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th class="rth">Roll</th>
+                                <th class="rth">Moderator</th>
+                                <th class="rth">%</th>
+                                <th class="rth">Mark</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="participantRows"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <div id="previewModal" class="modal" hidden>
+            <div class="modal-backdrop" data-close-modal></div>
+            <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="selectedName">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="selectedName">Report preview</h2>
+                        <p id="selectedMeta" class="muted">Use a row Preview button to show the homework table.</p>
+                    </div>
+                    <div class="actions">
+                        <button id="pdfBtn" class="btn btn-primary" type="button" disabled>Download PDF</button>
+                        <button id="closeModalBtn" class="btn btn-secondary" type="button">Close</button>
+                    </div>
+                </div>
+                <div id="preview" class="preview-empty">Report preview will appear here.</div>
+            </section>
         </div>
-
-        <div class="mt-6 flex flex-wrap gap-3">
-
-            <button id="btnGenerate"
-                    class="btn-primary">
-                Generate Reports
-            </button>
-
-            <button id="btnExportExcel"
-                    class="btn-success"
-                    disabled>
-                Export Excel
-            </button>
-
-            <button id="btnDownloadAllPdf"
-                    class="btn-danger"
-                    disabled>
-                Download All PDFs
-            </button>
-
-        </div>
-
-    </div>
-
-    <!-- STATS -->
-
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-
-        <div class="stat-card">
-            <div class="stat-title">Students</div>
-            <div id="statStudents" class="stat-value">0</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-title">Matched</div>
-            <div id="statMatched" class="stat-value">0</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-title">Unmatched</div>
-            <div id="statUnmatched" class="stat-value">0</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-title">Submissions</div>
-            <div id="statSubmissions" class="stat-value">0</div>
-        </div>
-
-        <div class="stat-card">
-            <div class="stat-title">Homework Days</div>
-            <div id="statHomeworkDays" class="stat-value">0</div>
-        </div>
-
-    </div>
-
-    <!-- TABS -->
-
-    <div class="card">
-
-        <div class="tab-buttons">
-
-            <button class="tab-btn active"
-                    data-tab="students">
-                Students
-            </button>
-
-            <button class="tab-btn"
-                    data-tab="homework">
-                Homework
-            </button>
-
-            <button class="tab-btn"
-                    data-tab="moderators">
-                Moderators
-            </button>
-
-            <button class="tab-btn"
-                    data-tab="unmatched">
-                Unmatched
-            </button>
-
-        </div>
-
-        <div class="mt-5">
-
-            <input
-                id="globalSearch"
-                type="text"
-                placeholder="Search name, roll, phone..."
-                class="input-search"
-            >
-
-        </div>
-
-        <!-- STUDENTS -->
-
-        <div id="studentsTab"
-             class="tab-content">
-
-            <div class="table-container">
-
-                <table class="data-table">
-
-                    <thead>
-                    <tr>
-                        <th>Roll</th>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Moderator</th>
-                        <th>Submitted</th>
-                        <th>Missing</th>
-                        <th>%</th>
-                        <th></th>
-                    </tr>
-                    </thead>
-
-                    <tbody id="studentsBody">
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </div>
-
-        <!-- HOMEWORK -->
-
-        <div id="homeworkTab"
-             class="tab-content hidden">
-
-            <div class="table-container">
-
-                <table class="data-table">
-
-                    <thead>
-                    <tr>
-                        <th>Homework</th>
-                        <th>Submitted</th>
-                        <th>Missing</th>
-                    </tr>
-                    </thead>
-
-                    <tbody id="homeworkBody"></tbody>
-
-                </table>
-
-            </div>
-
-        </div>
-
-        <!-- MODERATOR -->
-
-        <div id="moderatorsTab"
-             class="tab-content hidden">
-
-            <div class="table-container">
-
-                <table class="data-table">
-
-                    <thead>
-                    <tr>
-                        <th>Moderator</th>
-                        <th>Students</th>
-                        <th>Submitted</th>
-                        <th>Missing</th>
-                    </tr>
-                    </thead>
-
-                    <tbody id="moderatorBody"></tbody>
-
-                </table>
-
-            </div>
-
-        </div>
-
-        <!-- UNMATCHED -->
-
-        <div id="unmatchedTab"
-             class="tab-content hidden">
-
-            <div class="table-container">
-
-                <table class="data-table">
-
-                    <thead>
-                    <tr>
-                        <th>Phone</th>
-                        <th>Roll</th>
-                        <th>Homework</th>
-                        <th>Reason</th>
-                    </tr>
-                    </thead>
-
-                    <tbody id="unmatchedBody"></tbody>
-
-                </table>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- PDF PREVIEW -->
-
-<div id="pdfModal"
-     class="hidden modal">
-
-    <div class="modal-content">
-
-        <div class="flex justify-between mb-3">
-
-            <h2 class="font-bold text-xl">
-                PDF Preview
-            </h2>
-
-            <button id="closePdfModal">
-                x
-            </button>
-
-        </div>
-
-        <iframe
-            id="pdfFrame"
-            class="w-full h-full border"
-        ></iframe>
-
-    </div>
-
-</div>
-
-<script src="js/normalizer.js"></script>
-<script src="js/parser.js"></script>
-<script src="js/matcher.js"></script>
-<script src="js/reports.js"></script>
-<script src="js/export.js"></script>
-<script src="js/pdf.js"></script>
-<script src="js/app.js"></script>
+        
+    </main>
+    
+    <section class="footer">
+        <footer>
+            <p>QLLC Homework Reports</p>
+        </footer>
+    </section>
 
 </body>
+
+<script src="./assets/js/font.js"></script>
+<script src="./assets/js/script.js"></script>
 </html>
