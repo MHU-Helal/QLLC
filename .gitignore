@@ -3,5 +3,4 @@ node_modules
 !.gitignore
 bin
 data
-features.txt
 submission format.txt

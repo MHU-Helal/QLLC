@@ -35,6 +35,7 @@
             </div>
             <div class="actions">
                 <button id="processBtn" class="btn btn-secondary" type="button">Process Files</button>
+                <button id="settingsBtn" class="btn btn-secondary" type="button">Settings</button>
                 <button id="excelBtn" class="btn btn-primary" type="button">Export Excel</button>
                 <button id="zipBtn" class="btn btn-primary" type="button">Export PDF ZIP</button>
             </div>
@@ -76,6 +77,7 @@
                                 <th>Name</th>
                                 <th class="rth">Roll</th>
                                 <th class="rth">Moderator</th>
+                                <th class="rth">Submitted</th>
                                 <th class="rth">%</th>
                                 <th class="rth">Mark</th>
                                 <th>Actions</th>
@@ -103,6 +105,49 @@
                 <div id="preview" class="preview-empty">Report preview will appear here.</div>
             </section>
         </div>
+
+        <div id="settingsModal" class="modal" hidden>
+            <div class="modal-backdrop" data-close-settings></div>
+            <section class="modal-panel modal-panel-small" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="settingsTitle">Report settings</h2>
+                        <p class="muted">Saved in this browser and used before creating reports.</p>
+                    </div>
+                    <button id="closeSettingsBtn" class="btn btn-secondary" type="button">Close</button>
+                </div>
+                <div class="settings-grid">
+                    <label>
+                        <span>Each homework mark</span>
+                        <input id="homeworkMarkInput" type="number" min="0" step="0.5" value="2" />
+                    </label>
+                    <label>
+                        <span>Zoom class link</span>
+                        <input id="zoomLinkInput" type="url" placeholder="https://..." />
+                    </label>
+                    <label>
+                        <span>YouTube playlist</span>
+                        <input id="youtubePlaylistInput" type="url" placeholder="https://..." />
+                    </label>
+                    <label>
+                        <span>Admin WhatsApp number</span>
+                        <input id="adminWhatsappInput" type="text" placeholder="+880..." />
+                    </label>
+                    <label class="settings-wide">
+                        <span>Other important links for PDF</span>
+                        <textarea id="importantLinksInput" rows="3" placeholder="One link per line"></textarea>
+                    </label>
+                    <label class="check-row">
+                        <input id="acceptLateInput" type="checkbox" />
+                        <span>Accept late submissions</span>
+                    </label>
+                    <label class="check-row">
+                        <input id="skipEmptyPdfInput" type="checkbox" />
+                        <span>Skip PDFs for students with no submissions</span>
+                    </label>
+                </div>
+            </section>
+        </div>
         
     </main>
     
@@ -114,6 +159,6 @@
 
 </body>
 
-<script src="./assets/js/font.js"></script>
+<script src="./assets/js/base64.js"></script>
 <script src="./assets/js/script.js"></script>
 </html>
