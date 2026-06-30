@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advanced Attendance Analytics System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <meta name="description" content="Generate reports in excel & pdf for single or multiple sessions." />
+    <meta name="keywords" content="Report generator, Quraner Alo Foundation" />
+    <meta name="author" content="Md. Helal Uddin" />
+
+    <style>
+      .loading-spinner {
+        border-top-color: #3b82f6;
+        animation: spinner 1.5s linear infinite;
+      }
+
+      @keyframes spinner {
+        0% {
+          transform: rotate(0deg);
+        }
+
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      #progressBar {
+        position: relative;
+        box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+        /* Blue glow */
+      }
+
+      #progressBar::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.4),
+          transparent
+        );
+        animation: shimmer 1.5s infinite;
+      }
+
+      @keyframes shimmer {
+        0% {
+          transform: translateX(-100%);
+        }
+
+        100% {
+          transform: translateX(100%);
+        }
+      }
+    </style>
+  </head>
+
+  <body class="bg-slate-50 min-h-screen">
+    <div class="max-w-7xl mx-auto py-10 px-4 min-h-[75vh]">
+      <div class="flex justify-between items-end mb-8 border-b pb-6">
+        <div>
+          <h1 class="text-4xl font-extrabold text-slate-800 tracking-tight">
+            Quraner Alo Foundation
+          </h1>
+          <p class="text-slate-500 mt-2">
+            Professional Grade Attendance Analytics, Bulk PDF & Excel Generator
+            For QLLC
+          </p>
+        </div>
+        <div class="flex gap-3">
+          <button
+            id="downloadZip"
+            class="hidden bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg font-semibold flex items-center gap-2 shadow-sm transition-all"
+          >
+            <span>Export PDFs</span>
+          </button>
+          <button
+            id="downloadExcel"
+            class="hidden bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-semibold flex items-center gap-2 shadow-sm transition-all"
+          >
+            <span>Export Excel</span>
+          </button>
+        </div>
+      </div>
+
+      <div
+        id="loadingContainer"
+        class="hidden w-full h-1.5 bg-slate-200 overflow-hidden relative -mt-6 mb-8"
+      >
+        <div
+          id="progressBar"
+          class="h-full bg-blue-600 transition-all duration-300 ease-out relative"
+          style="width: 0%"
+        >
+          <div
+            class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"
+          ></div>
+        </div>
+      </div>
+
+      <div id="inputFields" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <label
+            class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider"
+            >Master Participant List</label
+          >
+          <input
+            type="file"
+            id="masterFile"
+            accept=".csv"
+            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+          />
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <label
+            class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider"
+            >Daily Attendance Files (Select multiple)</label
+          >
+          <input
+            type="file"
+            id="sessionFiles"
+            accept=".csv"
+            multiple
+            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+          />
+        </div>
+      </div>
+
+      <div id="processButton" class="flex justify-center mb-10">
+        <button
+          id="processBtn"
+          class="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-xl font-bold shadow-lg transition-all flex items-center gap-3"
+        >
+          <span id="btnText">Generate Report</span>
+          <div
+            id="loader"
+            class="hidden loading-spinner w-5 h-5 border-2 border-white rounded-full"
+          ></div>
+        </button>
+      </div>
+
+      <div id="dashboard" class="hidden space-y-10">
+        <div
+          id="modSummaryGrid"
+          class="grid grid-cols-1 md:grid-cols-3 gap-6"
+        ></div>
+
+        <div
+          class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
+        >
+          <div class="px-6 py-4 bg-slate-800 flex justify-between items-center">
+            <h2 class="text-white font-bold text-lg">
+              Detailed Participant Breakdown
+            </h2>
+            <span class="text-slate-400 text-sm italic"
+              >Sorted by Total Duration</span
+            >
+          </div>
+          <div class="overflow-x-auto">
+            <table id="mainTable" class="w-full text-left">
+              <thead>
+                <tr
+                  class="bg-slate-100 text-slate-600 uppercase text-xs font-bold"
+                >
+                  <th class="px-6 py-4">Participant</th>
+                  <th class="px-6 text-center py-4">Moderator</th>
+                  <th class="px-6 text-center py-4">Total Mins</th>
+                  <th class="px-6 text-center py-4">Min | Avg | Max</th>
+                  <th class="px-6 text-center py-4">Attendance</th>
+                  <th class="px-6 text-center py-4">Remarks</th>
+                  <th class="px-6 text-center py-4 text-center">Export</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings page -->
+    <div
+      id="settingsOverlay"
+      class="hidden fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all scale-95 opacity-0"
+        id="settingsModal"
+      >
+        <div class="bg-slate-800 p-6 text-white">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+              <span class="text-blue-400">⚡</span> Quick Links Configuration
+            </h2>
+            <span class="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300"
+              >Shift + Space</span
+            >
+          </div>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1"
+              >Admin's whatsapp number</label
+            >
+            <input
+              type="text"
+              id="link-whatsapp"
+              placeholder="https://chat.whatsapp.com/..."
+              class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1"
+              >YouTube Channel</label
+            >
+            <input
+              type="text"
+              id="link-youtube"
+              placeholder="https://youtube.com/..."
+              class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1"
+              >Zoom Meeting Link</label
+            >
+            <input
+              type="text"
+              id="link-zoom"
+              placeholder="https://zoom.us/j/..."
+              class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+            />
+          </div>
+
+          <div class="pt-4 flex gap-3">
+            <button
+              id="saveLinks"
+              class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-lg transition-all active:scale-95"
+            >
+              Save
+            </button>
+            <button
+              id="closeSettings"
+              class="px-4 py-2.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-20 border-t border-slate-200 bg-white py-16">
+      <div class="max-w-7xl mx-auto px-8">
+        <div class="flex justify-between gap-12 items-center">
+          <div class="text-center md:text-left">
+            <p class="text-sm font-black text-slate-800 tracking-[0.2em] mb-1">
+              Quraner Alo Foundation
+            </p>
+            <p class="text-[10px] text-slate-400 font-bold tracking-widest">
+              Automation & Analytics Division
+            </p>
+          </div>
+
+          <div class="text-center md:text-right">
+            <p class="text-[10px] text-slate-400 font-black tracking-widest">
+              System Timestamp
+            </p>
+            <p
+              class="text-xs text-slate-600 font-bold mt-1"
+              id="current-time"
+            ></p>
+            <p class="text-[10px] text-slate-300 mt-2">
+              © <span id="year"></span> Admin Control Panel
+            </p>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+     </body>
+</html>
+
+<script src="./assets/js/class.js"></script>

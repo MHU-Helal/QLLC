@@ -4,6 +4,14 @@ const state = {
   submissions: [],
   reports: [],
   selected: null,
+  reportRangeLabel: "",
+  rawChatText: "",
+  settings: {
+    homeworkMark: 2,
+    importantLinks: "",
+    acceptLateSubmissions: false,
+    skipEmptyPdf: false,
+  },
   files: {
     participants: null,
     homework: null,
@@ -26,6 +34,10 @@ document.addEventListener("DOMContentLoaded", () => {
     "excelBtn",
     "zipBtn",
     "processBtn",
+    "homeworkMarkInput",
+    "importantLinksInput",
+    "acceptLateInput",
+    "skipEmptyPdfInput",
     "participantsFile",
     "homeworkFile",
     "chatFile",
@@ -36,6 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   els.processBtn.addEventListener("click", loadApp);
+  loadSettings();
+  bindSettings();
   els.participantsFile.addEventListener("change", () => handleFileChange("participants", els.participantsFile.files[0]));
   els.homeworkFile.addEventListener("change", () => handleFileChange("homework", els.homeworkFile.files[0]));
   els.chatFile.addEventListener("change", () => handleFileChange("chat", els.chatFile.files[0]));
@@ -118,7 +132,8 @@ async function loadApp() {
     state.homework = parseCsv(homeworkCsv)
       .map(normalizeHomework)
       .filter(Boolean);
-    state.submissions = parseChat(chatText, getReportWindow(state.homework));
+    state.rawChatText = chatText;
+    state.submissions = parseChat(chatText, state.homework);
     state.reports = buildReports(
       state.participants,
       state.homework,
@@ -204,10 +219,11 @@ function normalizeHomework(row) {
   };
 }
 
-function parseChat(text, windowRange) {
+function parseChat(text, homeworkRows = []) {
   const lines = text.split(/\r?\n/);
   const blocks = [];
   let current = null;
+  const windowRange = getReportWindow(homeworkRows);
   const startPattern =
     /^(\d{1,2}\/\d{1,2}\/\d{2}),\s+(\d{1,2}:\d{2})\s*([AP]M)\s+-\s+([^:]+):\s?(.*)$/i;
 
@@ -219,7 +235,8 @@ function parseChat(text, windowRange) {
       const submittedAt = parseChatDate(match[1], match[2], match[3]);
       if (
         windowRange &&
-        (submittedAt < windowRange.start || submittedAt > windowRange.end)
+        (submittedAt < windowRange.start ||
+          (windowRange.end && submittedAt > windowRange.end))
       ) {
         current = null;
         continue;
@@ -238,17 +255,46 @@ function parseChat(text, windowRange) {
   }
   if (current) blocks.push(current);
 
-  return blocks
-    .map(extractSubmission)
+  const enrichedBlocks = blocks.map((block, index) =>
+    enrichNearbySubmissionBlock(block, blocks, index),
+  );
+
+  return enrichedBlocks
+    .map((block) => extractSubmission(block, homeworkRows))
     .filter(
       (submission) =>
         submission.homeworkNumbers.length > 0 || submission.hasAttachment,
     );
 }
 
-function extractSubmission(block) {
+function enrichNearbySubmissionBlock(block, blocks, index) {
+  const nearby = [block];
+  for (let i = index - 1; i >= 0; i--) {
+    if (!isNearbySameSender(block, blocks[i])) break;
+    nearby.unshift(blocks[i]);
+  }
+  for (let i = index + 1; i < blocks.length; i++) {
+    if (!isNearbySameSender(block, blocks[i])) break;
+    nearby.push(blocks[i]);
+  }
+  return {
+    ...block,
+    body: nearby.map((item) => item.body).join("\n"),
+    hasAttachment: nearby.some((item) => item.hasAttachment),
+  };
+}
+
+function isNearbySameSender(base, candidate) {
+  if (!candidate || base.sender !== candidate.sender) return false;
+  return Math.abs(base.submittedAt - candidate.submittedAt) / 60000 <= 12;
+}
+
+function extractSubmission(block, homeworkRows) {
   const text = block.body.replace(/[=:_#*()[\]{}]/g, " ");
-  const homeworkNumbers = extractHomeworkNumbers(text);
+  let homeworkNumbers = extractHomeworkNumbers(text);
+  if (!homeworkNumbers.length && looksLikeHomeworkSubmission(text, block)) {
+    homeworkNumbers = inferHomeworkNumbersFromTime(block.submittedAt, homeworkRows);
+  }
   const rollKey = normalizeRoll(
     (text.match(
       /\b(?:roll|id|r)\s*(?:no|number)?\s*[-:]?\s*([A-Z]{1,3}\s*[-.]?\s*\d+\s*[-.]?\s*\d*|\d{2,6})/i,
@@ -265,13 +311,31 @@ function extractSubmission(block) {
   };
 }
 
+function looksLikeHomeworkSubmission(text, block) {
+  return (
+    block.hasAttachment ||
+    /\b(home\s*work|homework|h\s*\.?\s*w\s*\.?|hw|submitted|done)\b/i.test(text)
+  );
+}
+
+function inferHomeworkNumbersFromTime(submittedAt, homeworkRows) {
+  const active = homeworkRows.filter((row) => {
+    const start = new Date(row.assignedDate);
+    start.setHours(0, 0, 0, 0);
+    return submittedAt >= start && submittedAt <= row.deadline;
+  });
+  if (!active.length) return [];
+  active.sort((a, b) => b.assignedDate - a.assignedDate);
+  return [active[0].homeworkNo];
+}
+
 function getReportWindow(homeworkRows) {
   if (!homeworkRows.length) return null;
   const start = new Date(homeworkRows[0].assignedDate);
   start.setHours(0, 0, 0, 0);
-  const end = new Date(
-    Math.max(...homeworkRows.map((row) => row.deadline.getTime())),
-  );
+  const end = state.settings.acceptLateSubmissions
+    ? null
+    : new Date(Math.max(...homeworkRows.map((row) => row.deadline.getTime())));
   return { start, end };
 }
 
@@ -347,18 +411,29 @@ function buildReports(participants, homeworkRows, submissions) {
         );
         const late = !valid && attempts[0];
         const chosen = valid || late || null;
-        const status = valid ? "submitted" : late ? "late" : "not-submitted";
+        const lateAccepted = Boolean(late && state.settings.acceptLateSubmissions);
+        const status = valid
+          ? "submitted"
+          : lateAccepted
+            ? "late-accepted"
+            : late
+              ? "late"
+              : "not-submitted";
         return {
           ...assignment,
           submittedAt: chosen ? chosen.submittedAt : null,
-          mark: valid ? 1 : 0,
+          mark: valid || lateAccepted ? state.settings.homeworkMark : 0,
           status,
           matchMethod: chosen ? chosen.matchMethod : "",
           hasAttachment: chosen ? chosen.hasAttachment : false,
         };
       });
 
-      const submitted = rows.reduce((sum, row) => sum + row.mark, 0);
+      const submitted = rows.filter((row) =>
+        ["submitted", "late-accepted"].includes(row.status),
+      ).length;
+      const earnedMarks = rows.reduce((sum, row) => sum + row.mark, 0);
+      const hasAnySubmission = rows.some((row) => row.submittedAt);
       const total = rows.length;
       const percent = total ? Math.round((submitted / total) * 10000) / 100 : 0;
       return {
@@ -366,6 +441,8 @@ function buildReports(participants, homeworkRows, submissions) {
         rows,
         total,
         submitted,
+        earnedMarks,
+        hasAnySubmission,
         missed: total - submitted,
         percent,
       };
@@ -402,21 +479,25 @@ function renderEmptyState(
   state.submissions = [];
   state.reports = [];
   state.selected = null;
+  state.reportRangeLabel = "";
+  state.rawChatText = "";
   els.reportRange.textContent = message;
   els.statsGrid.innerHTML = "";
-  els.participantRows.innerHTML = `<tr><td colspan="6" class="empty-cell">${escapeHtml(message)}</td></tr>`;
+  els.participantRows.innerHTML = `<tr><td colspan="7" class="empty-cell">${escapeHtml(message)}</td></tr>`;
   closePreviewModal();
   setBusy(false);
 }
 
 function renderRange() {
   if (!state.homework.length) {
+    state.reportRangeLabel = "";
     els.reportRange.textContent = "No homework schedule found.";
     return;
   }
   const first = state.homework[0];
   const last = state.homework[state.homework.length - 1];
-  els.reportRange.textContent = `${formatDate(first.assignedDate)} to ${formatDate(last.assignedDate)} | Homework ${first.homeworkNo}-${last.homeworkNo}`;
+  state.reportRangeLabel = `${formatDate(first.assignedDate)} to ${formatDate(last.assignedDate)} | Homework ${first.homeworkNo}-${last.homeworkNo}`;
+  els.reportRange.textContent = state.reportRangeLabel;
 }
 
 function renderStats() {
@@ -432,7 +513,7 @@ function renderStats() {
     ["Participants", state.participants.length],
     ["Homework days", state.homework.length],
     ["Moderators", moderatorCount],
-    ["Chat submissions", state.submissions.length],
+    ["Parsed submissions", state.submissions.length],
     ["Phone matches", matchedPhones],
   ];
   els.statsGrid.innerHTML = values
@@ -462,8 +543,9 @@ function renderParticipants() {
             <td>${escapeHtml(report.participant.name)}</td>
             <td>${escapeHtml(report.participant.roll || "-")}</td>
             <td>${escapeHtml(report.participant.moderator)}</td>
-            <td>${report.percent.toFixed(2)}%</td>
             <td>${report.submitted}/${report.total}</td>
+            <td>${report.percent.toFixed(2)}%</td>
+            <td>${report.earnedMarks}/${report.total * state.settings.homeworkMark}</td>
             <td>
                 <div class="row-actions">
                     <button class="btn btn-compact preview-row" type="button" data-id="${report.participant.id}">Preview</button>
@@ -515,15 +597,24 @@ function renderPreview() {
                 <div class="logo-mark"><img src="./assets/img/QLLC.png" alt="QLLC"></div>
                 <div>
                     <h2>Monthly Homework Report</h2>
-                    <p>${escapeHtml(els.reportRange.textContent)}</p>
+                    <p>${escapeHtml(state.reportRangeLabel || els.reportRange.textContent)}</p>
                 </div>
             </header>
             <div class="report-body">
-                <div class="summary-grid">
-                    <div class="summary-cell"><strong><span>Name</span><br></strong>${escapeHtml(report.participant.name)}</div>
-                    <div class="summary-cell"><strong><span>Roll</span><br></strong>${escapeHtml(report.participant.roll || "-")}</div>
-                    <div class="summary-cell"><strong><span>Homework</span><br></strong>${report.submitted}/${report.total}</div>
-                    <div class="summary-cell"><strong><span>Submission</span><br></strong>${report.percent.toFixed(2)}%</div>
+                <div class="summary-grid summary-grid-two">
+                    <div class="summary-cell">
+                        <strong><span>Student information</span><br></strong>
+                        ${escapeHtml(report.participant.name)}<br>
+                        Roll: ${escapeHtml(report.participant.roll || "-")}<br>
+                        Phone: ${escapeHtml(report.participant.mobile || "-")}<br>
+                        Email: ${escapeHtml(report.participant.email || "-")}
+                    </div>
+                    <div class="summary-cell">
+                        <strong><span>Report stats</span><br></strong>
+                        Submitted: ${report.submitted}/${report.total}<br>
+                        Marks: ${report.earnedMarks}/${report.total * state.settings.homeworkMark}<br>
+                        Moderator: ${escapeHtml(report.participant.moderator || "-")}
+                    </div>
                 </div>
                 <table class="report-table">
                     <thead>
@@ -543,7 +634,7 @@ function renderPreview() {
                             <td>${row.homeworkNo}</td>
                             <td>${escapeHtml(row.submittedAt ? formatDateTime(row.submittedAt) : "-")}</td>
                             <td>${escapeHtml(statusLabel(row.status))}</td>
-                            <td class="mark-${row.status}">${row.mark * 2}</td>
+                            <td class="mark-${row.status}">${row.mark}</td>
                         </tr>`,
                           )
                           .join("")}
@@ -611,7 +702,7 @@ function buildPdfDefinition(report) {
         alignment: "center",
       },
       {
-        text: String(row.mark * 2),
+        text: String(row.mark),
         color: row.mark ? "#087443" : "#a33d2d",
         bold: true,
         alignment: "center",
@@ -645,7 +736,7 @@ function buildPdfDefinition(report) {
                   color: "#ffffff",
                 },
                 {
-                  text: `${els.reportRange.textContent}`,
+                  text: `${state.reportRangeLabel || els.reportRange.textContent}`,
                   color: "#dbe7f3",
                   margin: [0, 4, 0, 0],
                 },
@@ -686,14 +777,23 @@ function buildPdfDefinition(report) {
     content: [
       {
         columns: [
-          summaryStack("Name", p.name),
-          summaryStack("Roll", p.roll || "-"),
-          summaryStack("Moderator", p.moderator),
           summaryStack(
-            "Submitted",
-            `${report.submitted}/${report.total} (${report.percent.toFixed(2)}%)`,
+            "Student Information",
+            [
+              p.name,
+              `Roll: ${p.roll || "-"}`,
+              `Phone: ${p.mobile || "-"}`,
+              `Email: ${p.email || "-"}`,
+            ],
           ),
-          summaryStack("Marks", report.submitted * 2),
+          summaryStack(
+            "Report Stats",
+            [
+              `Submitted: ${report.submitted}/${report.total} (${report.percent.toFixed(2)}%)`,
+              `Marks: ${report.earnedMarks}/${report.total * state.settings.homeworkMark}`,
+              `Moderator: ${p.moderator || "-"}`,
+            ],
+          ),
         ],
         columnGap: 8,
         margin: [22, 14, 22, 14],
@@ -714,6 +814,7 @@ function buildPdfDefinition(report) {
           vLineColor: () => "#d8e0e8",
         },
       },
+      ...importantLinksPdfContent(),
     ],
     styles: {
       tableHeader: { color: "#ffffff", bold: true, margin: [4, 5, 4, 5] },
@@ -726,11 +827,40 @@ function buildPdfDefinition(report) {
   };
 }
 
+function importantLinksPdfContent() {
+  const links = state.settings.importantLinks
+    .split(/\r?\n/)
+    .map(clean)
+    .filter(Boolean);
+  if (!links.length) return [];
+  return [
+    {
+      text: "Important Links",
+      bold: true,
+      fontSize: 15,
+      pageBreak: "before",
+      margin: [22, 14, 22, 8],
+    },
+    {
+      ul: links.map((link) => ({ text: link, link, color: "#18395a" })),
+      margin: [34, 0, 22, 0],
+    },
+  ];
+}
+
 function summaryStack(label, value) {
+  const valueStack = Array.isArray(value)
+    ? value.map((line, index) => ({
+        text: String(line),
+        style: "summaryValue",
+        bold: index === 0,
+        margin: [0, index === 0 ? 4 : 2, 0, 0],
+      }))
+    : [{ text: String(value), style: "summaryValue", margin: [0, 3, 0, 0] }];
   return {
     stack: [
       { text: label, style: "summaryLabel" },
-      { text: String(value), style: "summaryValue", margin: [0, 3, 0, 0] },
+      ...valueStack,
     ],
     fillColor: "#f3f6f9",
     margin: [8, 8, 8, 8],
@@ -749,12 +879,13 @@ function downloadParticipantPdf(report) {
 
 function statusLabel(status) {
   if (status === "submitted") return "Submitted";
+  if (status === "late-accepted") return "Late accepted";
   if (status === "late") return "Late / missed";
   return "Not submitted";
 }
 
 function statusColor(status) {
-  if (status === "submitted") return "#087443";
+  if (status === "submitted" || status === "late-accepted") return "#087443";
   if (status === "late") return "#a36b00";
   return "#a33d2d";
 }
@@ -763,8 +894,17 @@ async function exportPdfZip() {
   if (!state.reports.length) return;
   setBusy(true, "Creating PDF ZIP...");
   const zip = new JSZip();
+  const reports = state.settings.skipEmptyPdf
+    ? state.reports.filter((report) => report.hasAnySubmission)
+    : state.reports;
 
-  for (const report of state.reports) {
+  if (!reports.length) {
+    setBusy(false);
+    renderRange();
+    return;
+  }
+
+  for (const report of reports) {
     const folder = zip.folder(
       fileName(report.participant.moderator || "Unassigned"),
     );
@@ -793,42 +933,193 @@ async function exportExcel() {
   setBusy(true, "Creating Excel workbook...");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "QLLC Homework Reports";
+  workbook.created = new Date();
+  workbook.modified = new Date();
 
   const groups = groupReportsByModerator();
   for (const [moderator, reports] of groups) {
-    const sheet = workbook.addWorksheet(moderator.slice(0, 31) || "Unassigned");
-    sheet.columns = [
-      { header: "Name", key: "name", width: 28 },
-      { header: "Mobile", key: "mobile", width: 18 },
-      { header: "Roll", key: "roll", width: 16 },
-      { header: "Moderator", key: "moderator", width: 12 },
-      { header: "Submitted", key: "submitted", width: 12 },
-      { header: "Total", key: "total", width: 10 },
-      { header: "Percentage", key: "percent", width: 14 },
-    ];
-    sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-    sheet.getRow(1).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FF244A70" },
-    };
+    const sheet = workbook.addWorksheet(safeSheetName(moderator || "Unassigned", workbook));
+    setupDetailedSheet(sheet, `Moderator: ${moderator || "Unassigned"}`);
     reports.forEach((report) => {
-      sheet.addRow({
-        name: report.participant.name,
-        mobile: report.participant.mobile,
-        roll: report.participant.roll,
-        moderator: report.participant.moderator,
-        submitted: report.submitted,
-        total: report.total,
-        percent: report.percent / 100,
-      });
+      report.rows.forEach((row) => addHomeworkExcelRow(sheet, report, row));
     });
-    sheet.getColumn("percent").numFmt = "0.00%";
+    styleDetailedSheet(sheet);
+  }
+
+  state.homework.forEach((homework) => {
+    const sheet = workbook.addWorksheet(
+      safeSheetName(`HW ${homework.homeworkNo}`, workbook),
+    );
+    setupDetailedSheet(sheet, `Homework ${homework.homeworkNo} - ${homework.dateLabel}`);
+    state.reports.forEach((report) => {
+      const row = report.rows.find(
+        (item) => item.homeworkNo === homework.homeworkNo,
+      );
+      if (row) addHomeworkExcelRow(sheet, report, row);
+    });
+    styleDetailedSheet(sheet);
+  });
+
+  const summarySheet = workbook.addWorksheet(safeSheetName("Summary", workbook));
+  setupSummarySheet(summarySheet);
+  state.reports.forEach((report) => addSummaryExcelRow(summarySheet, report));
+  styleDetailedSheet(summarySheet);
+
+  const summaryIndex = workbook.worksheets.indexOf(summarySheet);
+  if (summaryIndex > 0) {
+    workbook.worksheets.splice(summaryIndex, 1);
+    workbook.worksheets.unshift(summarySheet);
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), "homework-report.xlsx");
   setBusy(false);
+}
+
+function setupDetailedSheet(sheet, title) {
+  sheet.properties.defaultRowHeight = 22;
+  sheet.views = [{ state: "frozen", ySplit: 2 }];
+  sheet.mergeCells("A1:Q1");
+  sheet.getCell("A1").value = title;
+  sheet.getCell("A1").font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+  sheet.getCell("A1").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF18395A" },
+  };
+  sheet.getCell("A1").alignment = { vertical: "middle" };
+  sheet.columns = detailedExcelColumns();
+  sheet.autoFilter = {
+    from: "A2",
+    to: "Q2",
+  };
+}
+
+function setupSummarySheet(sheet) {
+  setupDetailedSheet(sheet, "Homework Report Summary");
+  sheet.columns = [
+    { header: "Name", key: "name", width: 28 },
+    { header: "Student Number", key: "mobile", width: 18 },
+    { header: "Roll", key: "roll", width: 16 },
+    { header: "Email", key: "email", width: 28 },
+    { header: "Moderator", key: "moderator", width: 14 },
+    { header: "Submitted", key: "submitted", width: 12 },
+    { header: "Total Homework", key: "totalHomework", width: 16 },
+    { header: "Submitted/Total", key: "submittedTotal", width: 18 },
+    { header: "Marks Gained", key: "marksGained", width: 14 },
+    { header: "Total Mark", key: "totalMark", width: 12 },
+    { header: "Marks Gained/Total", key: "marksTotal", width: 20 },
+    { header: "Percentage", key: "percent", width: 14 },
+  ];
+  sheet.unMergeCells("A1:Q1");
+  sheet.mergeCells("A1:L1");
+  sheet.autoFilter = {
+    from: "A2",
+    to: "L2",
+  };
+}
+
+function detailedExcelColumns() {
+  return [
+    { header: "Name", key: "name", width: 28 },
+    { header: "Student Number", key: "mobile", width: 18 },
+    { header: "Roll", key: "roll", width: 16 },
+    { header: "Email", key: "email", width: 28 },
+    { header: "Moderator", key: "moderator", width: 14 },
+    { header: "Homework No", key: "homeworkNo", width: 13 },
+    { header: "Homework Assigned Date", key: "assignedDate", width: 24 },
+    { header: "Homework Submitted Date Time", key: "submittedAt", width: 28 },
+    { header: "Is Submitted", key: "isSubmitted", width: 13 },
+    { header: "Status", key: "status", width: 16 },
+    { header: "Mark", key: "mark", width: 10 },
+    { header: "Total Submitted", key: "totalSubmitted", width: 16 },
+    { header: "Total Homework", key: "totalHomework", width: 16 },
+    { header: "Submitted/Total", key: "submittedTotal", width: 18 },
+    { header: "Marks Gained", key: "marksGained", width: 14 },
+    { header: "Total Mark", key: "totalMark", width: 12 },
+    { header: "Marks Gained/Total", key: "marksTotal", width: 20 },
+  ];
+}
+
+function addHomeworkExcelRow(sheet, report, row) {
+  const totalMark = report.total * state.settings.homeworkMark;
+  sheet.addRow({
+    name: report.participant.name,
+    mobile: report.participant.mobile,
+    roll: report.participant.roll,
+    email: report.participant.email,
+    moderator: report.participant.moderator,
+    homeworkNo: row.homeworkNo,
+    assignedDate: row.dateLabel,
+    submittedAt: row.submittedAt ? formatDateTime(row.submittedAt) : "",
+    isSubmitted: row.mark > 0 ? "Yes" : "No",
+    status: statusLabel(row.status),
+    mark: row.mark,
+    totalSubmitted: report.submitted,
+    totalHomework: report.total,
+    submittedTotal: `${report.submitted}/${report.total}`,
+    marksGained: report.earnedMarks,
+    totalMark,
+    marksTotal: `${report.earnedMarks}/${totalMark}`,
+  });
+}
+
+function addSummaryExcelRow(sheet, report) {
+  const totalMark = report.total * state.settings.homeworkMark;
+  sheet.addRow({
+    name: report.participant.name,
+    mobile: report.participant.mobile,
+    roll: report.participant.roll,
+    email: report.participant.email,
+    moderator: report.participant.moderator,
+    submitted: report.submitted,
+    totalHomework: report.total,
+    submittedTotal: `${report.submitted}/${report.total}`,
+    marksGained: report.earnedMarks,
+    totalMark,
+    marksTotal: `${report.earnedMarks}/${totalMark}`,
+    percent: report.percent / 100,
+  });
+  sheet.getColumn("percent").numFmt = "0.00%";
+}
+
+function styleDetailedSheet(sheet) {
+  const header = sheet.getRow(2);
+  header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF244A70" },
+  };
+  header.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  header.height = 30;
+
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber <= 2) return;
+    row.alignment = { vertical: "top", wrapText: true };
+    if (rowNumber % 2 === 0) {
+      row.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF5F8FB" },
+      };
+    }
+  });
+}
+
+function safeSheetName(value, workbook) {
+  const base = String(value || "Sheet")
+    .replace(/[\\/?*[\]:]/g, "-")
+    .slice(0, 31)
+    .trim() || "Sheet";
+  let name = base;
+  let index = 2;
+  while (workbook.getWorksheet(name)) {
+    const suffix = ` ${index}`;
+    name = `${base.slice(0, 31 - suffix.length)}${suffix}`;
+    index += 1;
+  }
+  return name;
 }
 
 function groupReportsByModerator() {
@@ -839,6 +1130,81 @@ function groupReportsByModerator() {
     groups.get(key).push(report);
   }
   return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("qllcHomeworkSettings") || "{}");
+    state.settings = {
+      ...state.settings,
+      ...saved,
+      homeworkMark: normalizeNonNegativeNumber(saved.homeworkMark, 2),
+      classMark: normalizeNonNegativeNumber(saved.classMark, 2),
+    };
+  } catch (error) {
+    console.warn("Could not load report settings.", error);
+  }
+  renderSettings();
+}
+
+function bindSettings() {
+  [
+    "homeworkMarkInput",
+    "classMarkInput",
+    "classStartInput",
+    "classEndInput",
+    "importantLinksInput",
+    "acceptLateInput",
+    "skipEmptyPdfInput",
+  ].forEach((key) => {
+    if (!els[key]) return;
+    els[key].addEventListener("input", updateSettingsFromForm);
+    els[key].addEventListener("change", updateSettingsFromForm);
+  });
+}
+
+function renderSettings() {
+  if (!els.homeworkMarkInput) return;
+  els.homeworkMarkInput.value = state.settings.homeworkMark;
+  // els.classMarkInput.value = state.settings.classMark;
+  // els.classMarkInput.value = 5;
+  // els.classStartInput.value = state.settings.classStartTime;
+  // els.classStartInput.value = 5;
+  // els.classEndInput.value = state.settings.classEndTime;
+  // els.classEndInput.value = 10;
+  // els.importantLinksInput.value = state.settings.importantLinks;
+  els.acceptLateInput.checked = state.settings.acceptLateSubmissions;
+  els.skipEmptyPdfInput.checked = state.settings.skipEmptyPdf;
+}
+
+function updateSettingsFromForm() {
+  const previousAcceptLate = state.settings.acceptLateSubmissions;
+  state.settings = {
+    homeworkMark: normalizeNonNegativeNumber(els.homeworkMarkInput.value, 2),
+    classMark: normalizeNonNegativeNumber(els.classMarkInput.value, 2),
+    classStartTime: clean(els.classStartInput.value),
+    classEndTime: clean(els.classEndInput.value),
+    importantLinks: clean(els.importantLinksInput.value),
+    acceptLateSubmissions: els.acceptLateInput.checked,
+    skipEmptyPdf: els.skipEmptyPdfInput.checked,
+  };
+  localStorage.setItem("qllcHomeworkSettings", JSON.stringify(state.settings));
+  if (state.participants.length && state.homework.length) {
+    if (previousAcceptLate !== state.settings.acceptLateSubmissions) {
+      state.submissions = parseChat(state.rawChatText, state.homework);
+    }
+    state.reports = buildReports(
+      state.participants,
+      state.homework,
+      state.submissions,
+    );
+    renderAll();
+  }
+}
+
+function normalizeNonNegativeNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
 }
 
 function configurePdfFonts() {

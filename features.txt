@@ -1,0 +1,114 @@
+QLLC Homework Report Generator
+
+Required input files
+--------------------
+1. Participant list CSV
+   - Required columns: Name, Mobile, Roll, Country, Email, Moderator, Remarks
+   - Used to build the participant roster and moderator grouping.
+
+2. Homework list CSV
+   - Required columns: dates, homework, submit period
+   - Defines the reporting date range, homework numbers, and allowed submission window.
+   - Example:
+     dates, homework, submit period
+     5-20-2026, 76, 24 hours
+     5-21-2026, 77, 72 hours
+
+3. WhatsApp chat TXT export
+   - Contains participant homework submissions.
+   - The app scans only the date window covered by the homework CSV, including any extended submit-period spillover.
+
+
+Implemented features
+--------------------
+- Browser file inputs for uploading:
+  - participant list CSV
+  - homework list CSV
+  - WhatsApp chat TXT
+- Participant list is populated after the required files are uploaded.
+- Participants are ranked by the number of valid homework submissions, highest first.
+- Participant list is scrollable and does not overflow the viewport.
+- Search supports name, roll, mobile, and moderator.
+- Roll numbers are normalized for display, such as:
+  - F2 - 1532 -> F2-1532
+  - M3 1274 -> M3-1274
+  - F 142 -> F-142
+- Dates are displayed in long format, such as 14 June, 2026.
+- Homework deadlines are calculated from homework.csv.
+- Extended submission periods are respected.
+- Multiple homework submissions are parsed, including:
+  - Homework: 70, 71, 72
+  - Homework: 70-76
+- Participant matching uses:
+  - phone number first
+  - roll number as fallback
+- Row-level actions:
+  - Preview
+  - PDF download
+- Report preview opens in a modal.
+- Preview modal is scrollable.
+- Single participant PDF download.
+- PDF ZIP export grouped by moderator folders.
+- Excel export with separate sheets for each moderator.
+
+
+PDF report requirements
+-----------------------
+- Header and footer use full-width color bands with no visible page margin.
+- Header includes logo and report contents.
+- Homework table includes:
+  - assigned date
+  - homework number
+  - submitted at
+  - status
+  - mark
+- Status values:
+  - Submitted
+  - Late / missed
+  - Not submitted
+- Table headings use color.
+- Report rows are based only on the homework CSV date range.
+
+
+Current known bugs / risks
+--------------------------
+- WhatsApp exports are inconsistent; many submissions do not follow the standard format.
+- Some participants may submit from a phone number different from the participant CSV.
+- Roll-only matching can be ambiguous when duplicate roll numbers exist.
+- Some chat messages contain attachments without clear homework numbers.
+- Some submissions include separate attachment and text messages; interruption between messages may still reduce matching accuracy.
+- Deleted messages and media-only messages cannot be fully validated.
+- Browser export performance may slow down with very large PDF ZIP exports.
+
+
+Data cleanup needed
+-------------------
+- Remove duplicate participant rows.
+- Resolve duplicate mobile numbers.
+- Resolve duplicate roll numbers.
+- Fill missing roll numbers where possible.
+- Standardize participant mobile numbers with country code.
+
+
+Future improvement possibilities
+--------------------------------
+- Add an unmatched-submissions review screen.
+- Add confidence labels:
+  - matched by phone
+  - matched by roll
+  - ambiguous
+  - unmatched
+- Add a per-homework detail sheet in Excel. (Not needed now)
+- Add OCR support for image-only submissions. (Not needed now)
+- Add saved report sessions using browser storage. (Not needed now)
+- Add validation warnings immediately after file upload. (Not needed now)
+- Add PDF branding options for logo, organization name, color and header-footer text.
+- Add duplicate participant detection inside the UI.
+- Add manual correction tools for unmatched or ambiguous submissions (edit option with preview/download pdf).
+- A dynamic, responsive header
+- A setting page to provide important links to add in the pdf in the last page, class start time, class end time, Each class mark, Each homework mark to set before creating the reports, these settings should be saved in localStorage
+
+
+New report: Result report feature need to be created from the monthlyExamResult.csv and students.csv
+
+The index.html file will be used to create all reports together, meaning a single pdf with different pages for result, class details, homework details. A dynamic and responsive header to navigvate to individual reports generators..
