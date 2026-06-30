@@ -164,6 +164,14 @@ h2 {
     max-width: 1500px;
 }
 
+.modal-panel-small {
+    inset: 7vh 50%;
+    max-width: 760px;
+    min-height: 0;
+    transform: translateX(-50%);
+    width: calc(100vw - 32px);
+}
+
 .settings-grid {
     display: grid;
     gap: 12px;
@@ -201,13 +209,20 @@ h2 {
 
 .check-row {
     align-content: center;
+    align-items: center;
+    background: #f7f9fb;
+    border: 1px solid #d9e0e8;
+    border-radius: 6px;
     display: flex !important;
     flex-direction: row;
     gap: 8px !important;
+    padding: 9px 10px;
 }
 
 .check-row input {
-    width: auto;
+    accent-color: #244a70;
+    height: 18px;
+    width: 18px;
 }
 
 .upload-card {
@@ -318,6 +333,10 @@ th {
     vertical-align: top;
 }
 
+td:not(:first-child) {
+    text-align: center;
+}
+
 tbody tr {
     cursor: default;
 }
@@ -405,6 +424,7 @@ tbody tr.active {
     font-weight: 700;
 }
 
+.mark-manual,
 .mark-late-accepted {
     color: #087443;
     font-weight: 700;
@@ -420,6 +440,35 @@ tbody tr.active {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    justify-content: center;
+}
+
+.override-panel {
+    border: 1px solid #d9e0e8;
+    border-radius: 8px;
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px;
+}
+
+.override-panel h3 {
+    font-size: 15px;
+    margin: 0;
+}
+
+.override-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}
+
+.override-check {
+    justify-content: center;
+}
+
+.important-links-preview {
+    margin-top: 16px;
 }
 
 .empty-cell {
@@ -451,6 +500,7 @@ tbody tr.active {
     flex-direction: column;
     inset: 24px;
     overflow: hidden;
+    left: 50%;
     position: absolute;
 }
 
