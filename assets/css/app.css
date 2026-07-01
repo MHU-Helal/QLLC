@@ -148,6 +148,66 @@ h2 {
     max-width: 1500px;
 }
 
+.quality-status {
+    margin: 0 auto 18px;
+    max-width: 1500px;
+}
+
+.status-box {
+    background: #fff8ed;
+    border: 1px solid #efc16f;
+    border-left: 5px solid #c77911;
+    border-radius: 8px;
+    color: #3a2a14;
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+}
+
+.status-ok {
+    background: #eefaf4;
+    border-color: #9bd5b8;
+    border-left-color: #168557;
+    color: #123c2b;
+}
+
+.status-box strong {
+    display: block;
+    font-size: 15px;
+}
+
+.status-box span {
+    color: inherit;
+    display: block;
+    font-size: 13px;
+    margin-top: 3px;
+}
+
+.status-list {
+    display: grid;
+    gap: 7px;
+}
+
+.status-list details {
+    background: rgba(255, 255, 255, .72);
+    border: 1px solid rgba(199, 121, 17, .22);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.status-list summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.status-list ul {
+    color: #5e4a2f;
+    font-size: 13px;
+    margin: 8px 0 0;
+    padding-left: 18px;
+}
+
 .upload-grid {
     display: grid;
     gap: 12px;
@@ -337,6 +397,19 @@ td:not(:first-child) {
     text-align: center;
 }
 
+<<<<<<< HEAD
+.phone-link {
+    color: #0f6b4f;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.phone-link:hover {
+    text-decoration: underline;
+}
+
+=======
+>>>>>>> bbc583301e0ea8d53fa5f0dcb8d2730c65c24837
 tbody tr {
     cursor: default;
 }
