@@ -4,6 +4,7 @@ const state = {
   submissions: [],
   reports: [],
   selected: null,
+  dataQuality: [],
   reportRangeLabel: "",
   rawChatText: "",
   settings: {
@@ -14,6 +15,7 @@ const state = {
     importantLinks: "",
     acceptLateSubmissions: false,
     skipEmptyPdf: false,
+    whatsappTemplate: "Assalamu alaikum {name}, Roll: {roll}, Email: {email}",
   },
   files: {
     participants: null,
@@ -28,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   [
     "reportRange",
     "statsGrid",
+    "qualityStatus",
     "participantRows",
     "searchInput",
     "selectedName",
@@ -45,6 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "importantLinksInput",
     "acceptLateInput",
     "skipEmptyPdfInput",
+    "whatsappTemplateInput",
     "participantsFile",
     "homeworkFile",
     "chatFile",
@@ -142,7 +146,7 @@ async function loadApp() {
       $(".upload-grid").fadeOut(500),
     ]);
 
-    state.participants = parseCsv(participantCsv).map(normalizeParticipant);
+    state.participants = processParticipants(parseCsv(participantCsv));
     state.homework = parseCsv(homeworkCsv)
       .map(normalizeHomework)
       .filter(Boolean);
@@ -275,10 +279,7 @@ function parseChat(text, homeworkRows = []) {
 
   return enrichedBlocks
     .map((block) => extractSubmission(block, homeworkRows))
-    .filter(
-      (submission) =>
-        submission.homeworkNumbers.length > 0 || submission.hasAttachment,
-    );
+    .filter((submission) => submission.homeworkNumbers.length > 0);
 }
 
 function enrichNearbySubmissionBlock(block, blocks, index) {
@@ -326,10 +327,7 @@ function extractSubmission(block, homeworkRows) {
 }
 
 function looksLikeHomeworkSubmission(text, block) {
-  return (
-    block.hasAttachment ||
-    /\b(home\s*work|homework|h\s*\.?\s*w\s*\.?|hw|submitted|done)\b/i.test(text)
-  );
+  return /\b(home\s*work|homework|h\s*\.?\s*w\s*\.?|hw|submitted|done)\b/i.test(text);
 }
 
 function inferHomeworkNumbersFromTime(submittedAt, homeworkRows) {
@@ -479,8 +477,111 @@ function uniqueSubmissions(items) {
   return [...map.values()];
 }
 
+function processParticipants(rows) {
+  const rawParticipants = rows.map(normalizeParticipant).filter((participant) =>
+    participant.name || participant.mobileKey || participant.rollKey,
+  );
+  const issues = [];
+  const seenRows = new Map();
+  const deduped = [];
+
+  for (const participant of rawParticipants) {
+    const exactKey = [
+      participant.name.toLowerCase(),
+      participant.mobileKey,
+      participant.rollKey,
+      participant.email.toLowerCase(),
+      participant.moderator.toLowerCase(),
+    ].join("|");
+    if (seenRows.has(exactKey)) {
+      issues.push({
+        type: "Duplicate participant rows removed",
+        detail: `${participant.name || "Unnamed"} ${participant.roll || participant.mobile || ""}`.trim(),
+      });
+      continue;
+    }
+    seenRows.set(exactKey, true);
+    deduped.push(participant);
+  }
+
+  const byMobile = groupParticipants(deduped, "mobileKey");
+  for (const group of byMobile.values()) {
+    const rolls = uniqueValues(group.map((item) => item.rollKey));
+    const missingRolls = group.filter((item) => !item.rollKey);
+    if (group.length > 1) {
+      issues.push({
+        type: "Duplicate mobile numbers",
+        detail: `${formatIssueNames(group)} share ${group[0].mobile || group[0].mobileKey}`,
+      });
+    }
+    if (rolls.length === 1 && missingRolls.length) {
+      fillMissingRolls(missingRolls, group.find((item) => item.rollKey === rolls[0]));
+      issues.push({
+        type: "Missing roll numbers filled",
+        detail: `${formatIssueNames(missingRolls)} filled from mobile match ${group[0].mobile || group[0].mobileKey}`,
+      });
+    }
+  }
+
+  const byNameEmail = groupParticipants(deduped, (item) =>
+    `${item.name.toLowerCase()}|${item.email.toLowerCase()}`,
+  );
+  for (const group of byNameEmail.values()) {
+    const rolls = uniqueValues(group.map((item) => item.rollKey));
+    const missingRolls = group.filter((item) => !item.rollKey);
+    if (rolls.length === 1 && missingRolls.length) {
+      fillMissingRolls(missingRolls, group.find((item) => item.rollKey === rolls[0]));
+      issues.push({
+        type: "Missing roll numbers filled",
+        detail: `${formatIssueNames(missingRolls)} filled from matching name and email`,
+      });
+    }
+  }
+
+  const byRoll = groupParticipants(deduped, "rollKey");
+  for (const group of byRoll.values()) {
+    if (group.length > 1) {
+      issues.push({
+        type: "Duplicate roll numbers",
+        detail: `${formatIssueNames(group)} share ${group[0].roll || group[0].rollKey}`,
+      });
+    }
+  }
+
+  state.dataQuality = issues;
+  return deduped.map((participant, index) => ({ ...participant, id: `p-${index}` }));
+}
+
+function fillMissingRolls(participants, source) {
+  if (!source) return;
+  for (const participant of participants) {
+    participant.roll = source.roll;
+    participant.rollKey = source.rollKey;
+  }
+}
+
+function groupParticipants(items, keyOrGetter) {
+  const map = new Map();
+  for (const item of items) {
+    const key = typeof keyOrGetter === "function" ? keyOrGetter(item) : item[keyOrGetter];
+    if (!key || key === "|") continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  }
+  return new Map([...map.entries()].filter(([, group]) => group.length > 1));
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function formatIssueNames(group) {
+  return group.map((item) => item.name || item.mobile || item.roll || "Unnamed").join(", ");
+}
+
 function renderAll() {
   renderStats();
+  renderQualityStatus();
   renderRange();
   renderParticipants();
   closePreviewModal();
@@ -493,12 +594,14 @@ function renderEmptyState(
   state.homework = [];
   state.submissions = [];
   state.reports = [];
+  state.dataQuality = [];
   state.selected = null;
   state.reportRangeLabel = "";
   state.rawChatText = "";
   els.reportRange.textContent = message;
   els.statsGrid.innerHTML = "";
-  els.participantRows.innerHTML = `<tr><td colspan="7" class="empty-cell">${escapeHtml(message)}</td></tr>`;
+  if (els.qualityStatus) els.qualityStatus.innerHTML = "";
+  els.participantRows.innerHTML = `<tr><td colspan="8" class="empty-cell">${escapeHtml(message)}</td></tr>`;
   closePreviewModal();
   setBusy(false);
 }
@@ -539,6 +642,34 @@ function renderStats() {
     .join("");
 }
 
+function renderQualityStatus() {
+  if (!els.qualityStatus) return;
+  if (!state.dataQuality.length) {
+    els.qualityStatus.innerHTML = `
+      <div class="status-box status-ok">
+        <strong>Roster status</strong>
+        <span>No duplicate rows, duplicate mobile numbers, duplicate roll numbers, or fillable missing rolls found.</span>
+      </div>`;
+    return;
+  }
+
+  const grouped = groupBy(state.dataQuality, "type");
+  els.qualityStatus.innerHTML = `
+    <div class="status-box">
+      <div class="status-head">
+        <strong>Roster status needs review</strong>
+        <span>${state.dataQuality.length} item${state.dataQuality.length === 1 ? "" : "s"} found while cleaning participant data.</span>
+      </div>
+      <div class="status-list">
+        ${[...grouped.entries()].map(([type, items]) => `
+          <details>
+            <summary>${escapeHtml(type)} (${items.length})</summary>
+            <ul>${items.map((item) => `<li>${escapeHtml(item.detail)}</li>`).join("")}</ul>
+          </details>`).join("")}
+      </div>
+    </div>`;
+}
+
 function renderParticipants() {
   const query = els.searchInput.value.trim().toLowerCase();
   const reports = state.reports.filter(({ participant }) => {
@@ -557,6 +688,7 @@ function renderParticipants() {
       return `<tr class="${active}" data-id="${report.participant.id}">
             <td>${escapeHtml(report.participant.name)}</td>
             <td>${escapeHtml(report.participant.roll || "-")}</td>
+            <td>${whatsappLinkHtml(report.participant)}</td>
             <td>${escapeHtml(report.participant.moderator)}</td>
             <td>${report.submitted}/${report.total}</td>
             <td>${report.percent.toFixed(2)}%</td>
@@ -694,6 +826,24 @@ function renderPreview() {
   }
 }
 
+function whatsappLinkHtml(participant) {
+  if (!participant.mobileKey) return "-";
+  const url = buildWhatsappUrl(participant);
+  return `<a class="phone-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(participant.mobile || participant.mobileKey)}</a>`;
+}
+
+function buildWhatsappUrl(participant) {
+  return `https://wa.me/${participant.mobileKey}?text=${encodeURIComponent(renderWhatsappTemplate(participant))}`;
+}
+
+function renderWhatsappTemplate(participant) {
+  return (state.settings.whatsappTemplate || "")
+    .replace(/\{name\}/gi, participant.name || "")
+    .replace(/\{roll\}/gi, participant.roll || "")
+    .replace(/\{email\}/gi, participant.email || "")
+    .replace(/\{mobile\}/gi, participant.mobile || "");
+}
+
 function applyPreviewOverrides() {
   if (!state.selected) return;
   const checked = new Set(
@@ -812,11 +962,10 @@ function buildPdfDefinition(report) {
         body: [
           [
             {
-              image: "logo",
+              stack: [{ image: "logo", alignment: "center", width: 54, margin: [0, 6, 0, 0] }],
               alignment: "center",
-              width: 60,
-              //   fillColor: "#18395a",
-              margin: [0, 2, 0, 0],
+              fillColor: "#ffffff",
+              margin: [10, 8, 10, 8],
             },
             {
               stack: [
@@ -905,7 +1054,7 @@ function buildPdfDefinition(report) {
           vLineColor: () => "#d8e0e8",
         },
       },
-      ...importantLinksPdfContent(),
+      ...importantLinksPdfContent(report),
     ],
     styles: {
       tableHeader: { color: "#ffffff", bold: true, margin: [4, 5, 4, 5] },
@@ -918,30 +1067,73 @@ function buildPdfDefinition(report) {
   };
 }
 
-function importantLinksPdfContent() {
+function importantLinksPdfContent(report) {
+  const adminPhone = normalizePhone(state.settings.adminWhatsapp);
+  const adminMessage = report ? renderWhatsappTemplate(report.participant) : "";
   const links = [
-    state.settings.zoomLink && `Zoom class: ${state.settings.zoomLink}`,
-    state.settings.youtubePlaylist && `YouTube playlist: ${state.settings.youtubePlaylist}`,
-    state.settings.adminWhatsapp && `Admin WhatsApp: ${state.settings.adminWhatsapp}`,
-    ...state.settings.importantLinks.split(/\r?\n/),
-  ].map(clean).filter(Boolean);
+    state.settings.zoomLink && { label: "Zoom class", url: state.settings.zoomLink },
+    state.settings.youtubePlaylist && { label: "YouTube playlist", url: state.settings.youtubePlaylist },
+    adminPhone && {
+      label: "Admin WhatsApp",
+      url: `https://wa.me/${adminPhone}?text=${encodeURIComponent(adminMessage)}`,
+      text: state.settings.adminWhatsapp,
+    },
+    ...state.settings.importantLinks.split(/\r?\n/).map(parseImportantLink),
+  ].filter(Boolean);
   if (!links.length) return [];
   return [
     {
       text: "Important Links",
       bold: true,
-      fontSize: 15,
+      fontSize: 18,
+      color: "#18395a",
       pageBreak: "before",
-      margin: [22, 14, 22, 8],
+      margin: [22, 18, 22, 6],
     },
     {
-      ul: links.map((item) => {
-        const url = (item.match(/https?:\/\/\S+/) || [item])[0];
-        return { text: item, link: url, color: "#18395a" };
-      }),
-      margin: [34, 0, 22, 0],
+      text: "Tap or click any item below to open the resource.",
+      color: "#5c6d7e",
+      margin: [22, 0, 22, 12],
+    },
+    {
+      table: {
+        widths: ["*", 130],
+        body: links.map((item) => [
+          {
+            stack: [
+              { text: item.label, bold: true, fontSize: 12, color: "#18395a" },
+              { text: item.text || item.url, color: "#5c6d7e", fontSize: 9, margin: [0, 3, 0, 0] },
+            ],
+            link: item.url,
+            margin: [12, 10, 12, 10],
+          },
+          {
+            text: "Open link",
+            link: item.url,
+            color: "#ffffff",
+            bold: true,
+            alignment: "center",
+            fillColor: "#2e6f9f",
+            margin: [8, 12, 8, 12],
+          },
+        ]),
+      },
+      layout: {
+        fillColor: (rowIndex, node, columnIndex) => columnIndex === 0 ? "#f3f6f9" : null,
+        hLineColor: () => "#d8e0e8",
+        vLineColor: () => "#d8e0e8",
+      },
+      margin: [22, 0, 22, 0],
     },
   ];
+}
+
+function parseImportantLink(line) {
+  const value = clean(line);
+  if (!value) return null;
+  const url = (value.match(/https?:\/\/\S+/) || [value])[0];
+  const label = value.replace(url, "").replace(/[-:|]+$/, "").trim() || "Important link";
+  return { label, url, text: value };
 }
 
 function summaryStack(label, value) {
@@ -1261,6 +1453,7 @@ function bindSettings() {
     "importantLinksInput",
     "acceptLateInput",
     "skipEmptyPdfInput",
+    "whatsappTemplateInput",
   ].forEach((key) => {
     if (!els[key]) return;
     els[key].addEventListener("input", updateSettingsFromForm);
@@ -1277,6 +1470,7 @@ function renderSettings() {
   els.importantLinksInput.value = state.settings.importantLinks || "";
   els.acceptLateInput.checked = state.settings.acceptLateSubmissions;
   els.skipEmptyPdfInput.checked = state.settings.skipEmptyPdf;
+  els.whatsappTemplateInput.value = state.settings.whatsappTemplate || "";
 }
 
 function updateSettingsFromForm() {
@@ -1289,6 +1483,7 @@ function updateSettingsFromForm() {
     importantLinks: clean(els.importantLinksInput?.value),
     acceptLateSubmissions: Boolean(els.acceptLateInput?.checked),
     skipEmptyPdf: Boolean(els.skipEmptyPdfInput?.checked),
+    whatsappTemplate: clean(els.whatsappTemplateInput?.value) || "Assalamu alaikum {name}, Roll: {roll}, Email: {email}",
   };
   localStorage.setItem("qllcHomeworkSettings", JSON.stringify(state.settings));
   if (state.participants.length && state.homework.length) {

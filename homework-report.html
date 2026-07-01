@@ -60,6 +60,7 @@
         </section>
 
         <section class="stats-grid" id="statsGrid"></section>
+        <section class="quality-status" id="qualityStatus" aria-live="polite"></section>
 
         <section class="workspace">
             <section class="panel participant-panel">
@@ -76,6 +77,7 @@
                             <tr>
                                 <th>Name</th>
                                 <th class="rth">Roll</th>
+                                <th class="rth">WhatsApp</th>
                                 <th class="rth">Moderator</th>
                                 <th class="rth">Submitted</th>
                                 <th class="rth">%</th>
@@ -136,6 +138,10 @@
                     <label class="settings-wide">
                         <span>Other important links for PDF</span>
                         <textarea id="importantLinksInput" rows="3" placeholder="One link per line"></textarea>
+                    </label>
+                    <label class="settings-wide">
+                        <span>WhatsApp message template</span>
+                        <textarea id="whatsappTemplateInput" rows="3" placeholder="Use {name}, {roll}, {email}, {mobile}"></textarea>
                     </label>
                     <label class="check-row">
                         <input id="acceptLateInput" type="checkbox" />

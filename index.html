@@ -1,41 +1,307 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">   
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QLLC Reports</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            background-color: #0e1f44;
-            color: #fff;
+            margin: 0;
+            background: #f4f7fb;
+            color: #16212d;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .shell {
+            min-height: 100vh;
+            padding: 26px;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #18395a 0%, #2e6f9f 58%, #168557 100%);
+            border-radius: 8px;
+            color: #ffffff;
+            margin: 0 auto 18px;
+            max-width: 1180px;
+            overflow: hidden;
+            padding: 28px;
+            position: relative;
+        }
+
+        .hero::after {
+            background: rgba(255, 255, 255, .13);
+            content: "";
+            height: 220px;
+            position: absolute;
+            right: -76px;
+            top: -88px;
+            transform: rotate(18deg);
+            width: 260px;
+        }
+
+        .nav {
+            align-items: center;
+            display: flex;
+            gap: 14px;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+        }
+
+        .brand {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+        }
+
+        .brand-mark {
+            align-items: center;
+            background: #ffffff;
+            border-radius: 8px;
+            color: #18395a;
+            display: flex;
+            font-size: 18px;
+            font-weight: 900;
+            height: 48px;
+            justify-content: center;
+            width: 48px;
+        }
+
+        .brand strong {
+            display: block;
+            font-size: 18px;
+        }
+
+        .brand span {
+            color: rgba(255, 255, 255, .76);
+            display: block;
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .nav-links a {
+            background: rgba(255, 255, 255, .14);
+            border: 1px solid rgba(255, 255, 255, .24);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 800;
+            padding: 9px 12px;
+        }
+
+        .hero-copy {
+            max-width: 700px;
+            padding: 76px 0 28px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .eyebrow {
+            color: rgba(255, 255, 255, .78);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: clamp(34px, 6vw, 64px);
+            line-height: 1.02;
+            margin: 0;
+            max-width: 780px;
+        }
+
+        .hero-copy p:last-child {
+            color: rgba(255, 255, 255, .84);
+            font-size: 17px;
+            line-height: 1.6;
+            margin: 16px 0 0;
+            max-width: 620px;
+        }
+
+        .reports {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin: 0 auto;
+            max-width: 1180px;
+        }
+
+        .report-card {
+            background: #ffffff;
+            border: 1px solid #d9e0e8;
+            border-radius: 8px;
+            display: grid;
+            gap: 18px;
+            min-height: 230px;
+            padding: 20px;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+
+        .report-card:hover {
+            border-color: #9bb8d0;
+            box-shadow: 0 18px 42px rgba(24, 57, 90, .12);
+            transform: translateY(-3px);
+        }
+
+        .card-top {
+            align-items: center;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .card-icon {
+            align-items: center;
+            border-radius: 8px;
+            display: flex;
+            font-size: 22px;
+            font-weight: 900;
+            height: 48px;
+            justify-content: center;
+            width: 48px;
+        }
+
+        .attendance .card-icon {
+            background: #eaf4fb;
+            color: #2e6f9f;
+        }
+
+        .homework .card-icon {
+            background: #eefaf4;
+            color: #168557;
+        }
+
+        .result .card-icon {
+            background: #fff5e8;
+            color: #b86400;
+        }
+
+        .arrow {
+            color: #667789;
+            font-size: 24px;
+        }
+
+        .report-card h2 {
+            font-size: 24px;
+            margin: 0;
+        }
+
+        .report-card p {
+            color: #667789;
+            line-height: 1.55;
+            margin: 8px 0 0;
+        }
+
+        .card-footer {
+            align-self: end;
+            color: #18395a;
+            font-size: 13px;
+            font-weight: 900;
+        }
+
+        @media (max-width: 860px) {
+            .shell {
+                padding: 14px;
+            }
+
+            .hero {
+                padding: 20px;
+            }
+
+            .nav {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .hero-copy {
+                padding-top: 48px;
+            }
+
+            .reports {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
-    <main class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold text-center mt-10 mb-10">QLLC Reports</h1>
-        
-       <section class="flex justify-center gap-10">
-         <div class="bg-[#2563eb] p-10  rounded-md mt-4 mb-4">
-            <a href="./class-report.html" class="text-2xl font-bold text-center">Class Reports</a>
-        </div>
-        
-        <div class="bg-[#2563eb] p-10 rounded-md mt-4 mb-4">
-            <a href="./homework-report.html" class="text-2xl font-bold text-center">Homework Reports</a>
-        </div>
-        
-        <div class="bg-[#2563eb] p-10 rounded-md mt-4 mb-4">
-            <a href="./result-report.html" class="text-2xl font-bold text-center">Result Reports</a>
-        </div>
-       </section>
+    <main class="shell">
+        <section class="hero">
+            <nav class="nav" aria-label="Report navigation">
+                <a class="brand" href="./index.html">
+                    <span class="brand-mark"><img src="./assets/img/QLLC.png" width="48" height="48" alt="QLLC Logo"></span>
+                    <span>
+                        <strong>QLLC Reports</strong>
+                        <span>Monthly academic reporting hub</span>
+                    </span>
+                </a>
+                <div class="nav-links">
+                    <a href="./class-report.html">Class</a>
+                    <a href="./homework-report.html">Homework</a>
+                    <a href="./result-report.html">Result</a>
+                </div>
+            </nav>
+            <div class="hero-copy">
+                <p class="eyebrow">Report generators</p>
+                <h1>Create class, homework, and result reports from one place.</h1>
+                <p>Open the exact generator you need, process the CSV or WhatsApp exports, then download polished Excel and PDF outputs.</p>
+            </div>
+        </section>
+
+        <section class="reports" aria-label="Available reports">
+            <a class="report-card attendance" href="./class-report.html">
+                <div class="card-top">
+                    <span class="card-icon">C</span>
+                    <span class="arrow">-></span>
+                </div>
+                <div>
+                    <h2>Class Reports</h2>
+                    <p>Build attendance summaries, review class participation, and export student PDFs.</p>
+                </div>
+                <span class="card-footer">Open class generator</span>
+            </a>
+
+            <a class="report-card homework" href="./homework-report.html">
+                <div class="card-top">
+                    <span class="card-icon">H</span>
+                    <span class="arrow">-></span>
+                </div>
+                <div>
+                    <h2>Homework Reports</h2>
+                    <p>Match WhatsApp submissions, clean participant data, and create moderator grouped reports.</p>
+                </div>
+                <span class="card-footer">Open homework generator</span>
+            </a>
+
+            <a class="report-card result" href="./result-report.html">
+                <div class="card-top">
+                    <span class="card-icon">R</span>
+                    <span class="arrow">-></span>
+                </div>
+                <div>
+                    <h2>Result Reports</h2>
+                    <p>Prepare exam result PDFs and exports with student roll, phone, and mark matching.</p>
+                </div>
+                <span class="card-footer">Open result generator</span>
+            </a>
+        </section>
     </main>
 </body>
+
 </html>
