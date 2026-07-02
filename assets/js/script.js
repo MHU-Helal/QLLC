@@ -406,9 +406,9 @@ function buildReports(participants, homeworkRows, submissions) {
         })),
         ...(participant.rollKey
           ? (byRoll.get(participant.rollKey) || []).map((item) => ({
-              ...item,
-              matchMethod: "roll",
-            }))
+            ...item,
+            matchMethod: "roll",
+          }))
           : []),
       ]);
 
@@ -682,16 +682,16 @@ function renderParticipants() {
     .map((report) => {
       const active =
         state.selected &&
-        state.selected.participant.id === report.participant.id
+          state.selected.participant.id === report.participant.id
           ? "active"
           : "";
       return `<tr class="${active}" data-id="${report.participant.id}">
-            <td>${escapeHtml(report.participant.name)}</td>
+            <td>${escapeHtml(report.participant.name.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()))}</td>
             <td>${escapeHtml(report.participant.roll || "-")}</td>
             <td>${whatsappLinkHtml(report.participant)}</td>
             <td>${escapeHtml(report.participant.moderator)}</td>
             <td>${report.submitted}/${report.total}</td>
-            <td>${report.percent.toFixed(2)}%</td>
+            <td>${report.percent.toFixed(0)}%</td>
             <td>${report.earnedMarks}/${report.total * state.settings.homeworkMark}</td>
             <td>
                 <div class="row-actions">
@@ -762,13 +762,13 @@ function renderPreview() {
                 <div class="summary-grid summary-grid-two">
                     <div class="summary-cell">
                         <strong><span>Student information</span><br></strong>
-                        ${escapeHtml(report.participant.name)}<br>
+                        ${escapeHtml(report.participant.name).toLowerCase().replace(/\b\w/g, char => char.toUpperCase())}<br>
                         Roll: ${escapeHtml(report.participant.roll || "-")}<br>
                         Phone: ${escapeHtml(report.participant.mobile || "-")}<br>
                         Email: ${escapeHtml(report.participant.email || "-")}
                     </div>
                     <div class="summary-cell">
-                        <strong><span>Report stats</span><br></strong>
+                        <strong><span>Report summary</span><br></strong>
                         Submitted: ${report.submitted}/${report.total}<br>
                         Marks: ${report.earnedMarks}/${report.total * state.settings.homeworkMark}<br>
                         Moderator: ${escapeHtml(report.participant.moderator || "-")}
@@ -781,13 +781,13 @@ function renderPreview() {
                     </div>
                     <div class="override-grid">
                         ${report.rows
-                          .map(
-                            (row) => `<label class="check-row override-check">
+      .map(
+        (row) => `<label class="check-row override-check">
                                 <input type="checkbox" class="override-input" data-homework="${row.homeworkNo}" ${row.mark > 0 ? "checked" : ""} />
                                 <span>HW ${row.homeworkNo}</span>
                             </label>`,
-                          )
-                          .join("")}
+      )
+      .join("")}
                     </div>
                     <button id="applyOverridesBtn" class="btn btn-secondary" type="button">Apply overrides</button>
                 </div>
@@ -803,16 +803,16 @@ function renderPreview() {
                     </thead>
                     <tbody>
                         ${report.rows
-                          .map(
-                            (row) => `<tr>
+      .map(
+        (row) => `<tr>
                             <td>${escapeHtml(row.dateLabel)}</td>
                             <td>${row.homeworkNo}</td>
                             <td>${escapeHtml(row.submittedAt ? formatDateTime(row.submittedAt) : "-")}</td>
                             <td>${escapeHtml(statusLabel(row.status))}</td>
                             <td class="mark-${row.status}">${row.mark}</td>
                         </tr>`,
-                          )
-                          .join("")}
+      )
+      .join("")}
                     </tbody>
                 </table>
             </div>
@@ -997,7 +997,7 @@ function buildPdfDefinition(report) {
         body: [
           [
             {
-              text: "Quraner Alo Foundation - Student Report",
+              text: "Quraner Alo Foundation - Student Homework Report",
               color: "#ffffff",
               fillColor: "#18395a",
               margin: [18, 13, 0, 0],
@@ -1018,7 +1018,11 @@ function buildPdfDefinition(report) {
       {
         columns: [
           summaryStack(
-            "Student Information",
+           {
+            text: "Student Information",
+            bold: true,
+           },
+
             [
               p.name,
               `Roll: ${p.roll || "-"}`,
@@ -1027,9 +1031,12 @@ function buildPdfDefinition(report) {
             ],
           ),
           summaryStack(
-            "Report Stats",
+            {
+              text: "Report Summary",
+              bold: true,
+            },
             [
-              `Submitted: ${report.submitted}/${report.total} (${report.percent.toFixed(2)}%)`,
+              `Submitted: ${report.submitted}/${report.total} (${report.percent.toFixed(0)}%)`,
               `Marks: ${report.earnedMarks}/${report.total * state.settings.homeworkMark}`,
               `Moderator: ${p.moderator || "-"}`,
             ],
@@ -1139,11 +1146,11 @@ function parseImportantLink(line) {
 function summaryStack(label, value) {
   const valueStack = Array.isArray(value)
     ? value.map((line, index) => ({
-        text: String(line),
-        style: "summaryValue",
-        bold: index === 0,
-        margin: [0, index === 0 ? 4 : 2, 0, 0],
-      }))
+      text: String(line),
+      style: "summaryValue",
+      bold: index === 0,
+      margin: [0, index === 0 ? 4 : 2, 0, 0],
+    }))
     : [{ text: String(value), style: "summaryValue", margin: [0, 3, 0, 0] }];
   return {
     stack: [
@@ -1167,7 +1174,7 @@ function downloadParticipantPdf(report) {
 
 function statusLabel(status) {
   if (status === "submitted") return "Submitted";
-  if (status === "manual") return "Manually submitted";
+  if (status === "manual") return "Submitted";
   if (status === "late-accepted") return "Late accepted";
   if (status === "late") return "Late / missed";
   return "Not submitted";
@@ -1339,7 +1346,7 @@ function detailedExcelColumns() {
 function addHomeworkExcelRow(sheet, report, row) {
   const totalMark = report.total * state.settings.homeworkMark;
   sheet.addRow({
-    name: report.participant.name,
+    name: report.participant.name.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()),
     mobile: report.participant.mobile,
     roll: report.participant.roll,
     email: report.participant.email,
@@ -1358,7 +1365,7 @@ function addHomeworkExcelRow(sheet, report, row) {
 function addSummaryExcelRow(sheet, report) {
   const totalMark = report.total * state.settings.homeworkMark;
   sheet.addRow({
-    name: report.participant.name,
+    name: report.participant.name.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()),
     mobile: report.participant.mobile,
     roll: report.participant.roll,
     email: report.participant.email,
@@ -1367,7 +1374,7 @@ function addSummaryExcelRow(sheet, report) {
     marksTotal: `${report.earnedMarks}/${totalMark}`,
     percent: report.percent / 100,
   });
-  sheet.getColumn("percent").numFmt = "0.00%";
+  sheet.getColumn("percent").numFmt = "0%";
 }
 
 function styleDetailedSheet(sheet) {
